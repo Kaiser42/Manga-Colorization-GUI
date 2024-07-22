@@ -1,17 +1,5 @@
-"""
-Functions implementing custom NN layers
-
-Copyright (C) 2018, Matias Tassano <matias.tassano@parisdescartes.fr>
-
-This program is free software: you can use, modify and/or
-redistribute it under the terms of the GNU General Public
-License as published by the Free Software Foundation, either
-version 3 of the License, or (at your option) any later
-version. You should have received a copy of this license along
-this program. If not, see <http://www.gnu.org/licenses/>.
-"""
 import torch
-from torch.autograd import Function, Variable
+from torch.autograd import Function
 
 def concatenate_input_noise_map(input, noise_sigma):
     r"""Implements the first layer of FFDNet. This function returns a
@@ -25,21 +13,16 @@ def concatenate_input_noise_map(input, noise_sigma):
         input: batch containing CxHxW images
         noise_sigma: the value of the pixels of the CxH/2xW/2 noise map
     """
-    # noise_sigma is a list of length batch_size
     N, C, H, W = input.size()
-    dtype = input.type()
     sca = 2
-    sca2 = sca*sca
-    Cout = sca2*C
-    Hout = H//sca
-    Wout = W//sca
+    sca2 = sca * sca
+    Cout = sca2 * C
+    Hout = H // sca
+    Wout = W // sca
     idxL = [[0, 0], [0, 1], [1, 0], [1, 1]]
 
-    # Fill the downsampled image with zeros
-    if 'cuda' in dtype:
-        downsampledfeatures = torch.cuda.FloatTensor(N, Cout, Hout, Wout).fill_(0)
-    else:
-        downsampledfeatures = torch.FloatTensor(N, Cout, Hout, Wout).fill_(0)
+    # Initialize the downsampled features tensor
+    downsampledfeatures = torch.empty(N, Cout, Hout, Wout, device=input.device, dtype=input.dtype).fill_(0)
 
     # Build the CxH/2xW/2 noise map
     noise_map = noise_sigma.view(N, 1, 1, 1).repeat(1, C, Hout, Wout)
@@ -49,7 +32,7 @@ def concatenate_input_noise_map(input, noise_sigma):
         downsampledfeatures[:, idx:Cout:sca2, :, :] = \
             input[:, :, idxL[idx][0]::sca, idxL[idx][1]::sca]
 
-    # concatenate de-interleaved mosaic with noise map
+    # Concatenate de-interleaved mosaic with noise map
     return torch.cat((noise_map, downsampledfeatures), 1)
 
 class UpSampleFeaturesFunction(Function):
@@ -62,17 +45,16 @@ class UpSampleFeaturesFunction(Function):
     @staticmethod
     def forward(ctx, input):
         N, Cin, Hin, Win = input.size()
-        dtype = input.type()
         sca = 2
-        sca2 = sca*sca
-        Cout = Cin//sca2
-        Hout = Hin*sca
-        Wout = Win*sca
+        sca2 = sca * sca
+        Cout = Cin // sca2
+        Hout = Hin * sca
+        Wout = Win * sca
         idxL = [[0, 0], [0, 1], [1, 0], [1, 1]]
 
-        assert (Cin%sca2 == 0), 'Invalid input dimensions: number of channels should be divisible by 4'
+        assert Cin % sca2 == 0, 'Invalid input dimensions: number of channels should be divisible by 4'
 
-        result = torch.zeros((N, Cout, Hout, Wout)).type(dtype)
+        result = torch.zeros((N, Cout, Hout, Wout), device=input.device, dtype=input.dtype)
         for idx in range(sca2):
             result[:, :, idxL[idx][0]::sca, idxL[idx][1]::sca] = input[:, idx:Cin:sca2, :, :]
 
@@ -81,21 +63,20 @@ class UpSampleFeaturesFunction(Function):
     @staticmethod
     def backward(ctx, grad_output):
         N, Cg_out, Hg_out, Wg_out = grad_output.size()
-        dtype = grad_output.data.type()
         sca = 2
-        sca2 = sca*sca
-        Cg_in = sca2*Cg_out
-        Hg_in = Hg_out//sca
-        Wg_in = Wg_out//sca
+        sca2 = sca * sca
+        Cg_in = sca2 * Cg_out
+        Hg_in = Hg_out // sca
+        Wg_in = Wg_out // sca
         idxL = [[0, 0], [0, 1], [1, 0], [1, 1]]
 
         # Build output
-        grad_input = torch.zeros((N, Cg_in, Hg_in, Wg_in)).type(dtype)
+        grad_input = torch.zeros((N, Cg_in, Hg_in, Wg_in), device=grad_output.device, dtype=grad_output.dtype)
         # Populate output
         for idx in range(sca2):
-            grad_input[:, idx:Cg_in:sca2, :, :] = grad_output.data[:, :, idxL[idx][0]::sca, idxL[idx][1]::sca]
+            grad_input[:, idx:Cg_in:sca2, :, :] = grad_output[:, :, idxL[idx][0]::sca, idxL[idx][1]::sca]
 
-        return Variable(grad_input)
+        return grad_input
 
 # Alias functions
 upsamplefeatures = UpSampleFeaturesFunction.apply
