@@ -4,10 +4,9 @@ import rarfile
 import gradio as gr
 from datetime import datetime
 from PIL import Image
-from webui_utils.download import download_weights
 from pathlib import Path
 import argparse
-
+import subprocess
 
 def get_unique_save_path(save_path):
     base, ext = os.path.splitext(save_path)
@@ -16,7 +15,6 @@ def get_unique_save_path(save_path):
         save_path = f"{base}_{counter}{ext}"
         counter += 1
     return save_path
-
 
 def extract_images_from_archive(archive_path, temp_dir):
     ext = os.path.splitext(archive_path)[1].lower()
@@ -33,6 +31,17 @@ def extract_images_from_archive(archive_path, temp_dir):
 
     return extracted_files
 
+def upscale_image(input_path, output_path, scale, model_name, output_format):
+    command = [
+        'realesrgan/realesrgan-ncnn-vulkan.exe',
+        '-i', input_path,
+        '-o', output_path,
+        '-s', str(scale),
+        '-n', model_name,
+        '-f', output_format
+    ]
+    subprocess.run(command)
+    return output_path
 
 def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25, size=576):
     if output is None or output.strip() == "":
@@ -63,25 +72,29 @@ def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25
     else:
         return "Error: No colorized image found."
 
-
-def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size):
+def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name, output_format):
     colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
     if os.path.exists(colorized_image_path):
+        if upscale:
+            upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name, output_format)
+            return Image.open(upscaled_image_path)
         return Image.open(colorized_image_path)
     else:
         return None
 
-
-def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size):
+def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name, output_format):
     colorized_images = []
     for image_path in image_paths:
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
-            colorized_images.append(Image.open(colorized_image_path))
+            if upscale:
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name, output_format)
+                colorized_images.append(Image.open(upscaled_image_path))
+            else:
+                colorized_images.append(Image.open(colorized_image_path))
     return colorized_images
 
-
-def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size):
+def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name, output_format):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -103,12 +116,15 @@ def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma
     for image_path in image_files:
         colorized_image_path = print_cli(image_path, output_folder, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
-            colorized_images.append(Image.open(colorized_image_path))
+            if upscale:
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name, output_format)
+                colorized_images.append(Image.open(upscaled_image_path))
+            else:
+                colorized_images.append(Image.open(colorized_image_path))
 
     return colorized_images
 
-
-def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size):
+def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name, output_format):
     temp_dir = Path('./temp_extracted')
     if not temp_dir.exists():
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -119,7 +135,11 @@ def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size
     for image_path in extracted_files:
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
-            colorized_images.append(Image.open(colorized_image_path))
+            if upscale:
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name, output_format)
+                colorized_images.append(Image.open(upscaled_image_path))
+            else:
+                colorized_images.append(Image.open(colorized_image_path))
 
     # Optionally re-package colorized images into an archive
     colorized_archive_path = get_unique_save_path(os.path.splitext(archive_path)[0] + "_colorized.zip")
@@ -128,7 +148,6 @@ def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size
             colorized_archive.write(image_path.filename, os.path.basename(image_path.filename))
 
     return colorized_archive_path
-
 
 def run_interface(share=False):
     with gr.Blocks() as demo:
@@ -143,7 +162,11 @@ def run_interface(share=False):
                             gr.Checkbox(label="Use GPU"),
                             gr.Checkbox(label="No Denoise"),
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32)
+                            gr.Slider(0, 4000, label="Size", value=576, step=32),
+                            gr.Checkbox(label="Upscale Image"),
+                            gr.Slider(2, 4, step=1, label="Upscale Scale", value=4),
+                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime', 'realesrnet-x4plus'], label="Upscale Model", value='realesrgan-x4plus'),
+                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
                         ],
                         outputs=gr.Image(type='pil', label="Colorized Image", height=800, width=700)
                     )
@@ -159,7 +182,11 @@ def run_interface(share=False):
                             gr.Checkbox(label="Use GPU"),
                             gr.Checkbox(label="No Denoise"),
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32)
+                            gr.Slider(0, 4000, label="Size", value=576, step=32),
+                            gr.Checkbox(label="Upscale Images"),
+                            gr.Slider(2, 4, step=1, label="Upscale Scale", value=4),
+                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime', 'realesrnet-x4plus'], label="Upscale Model", value='realesrgan-x4plus'),
+                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
                         ],
                         outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
                     )
@@ -175,7 +202,11 @@ def run_interface(share=False):
                             gr.Checkbox(label="Use GPU"),
                             gr.Checkbox(label="No Denoise"),
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32)
+                            gr.Slider(0, 4000, label="Size", value=576, step=32),
+                            gr.Checkbox(label="Upscale Images"),
+                            gr.Slider(2, 4, step=1, label="Upscale Scale", value=4),
+                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime', 'realesrnet-x4plus'], label="Upscale Model", value='realesrgan-x4plus'),
+                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
                         ],
                         outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
                     )
@@ -191,7 +222,11 @@ def run_interface(share=False):
                             gr.Checkbox(label="Use GPU"),
                             gr.Checkbox(label="No Denoise"),
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32)
+                            gr.Slider(0, 4000, label="Size", value=576, step=32),
+                            gr.Checkbox(label="Upscale Images"),
+                            gr.Slider(2, 4, step=1, label="Upscale Scale", value=4),
+                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime', 'realesrnet-x4plus'], label="Upscale Model", value='realesrgan-x4plus'),
+                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
                         ],
                         outputs=gr.Textbox(label="Colorized Archive Path")
                     )
@@ -200,13 +235,12 @@ def run_interface(share=False):
             with gr.Row():
                 with gr.Column():
                     extras_interface = gr.Interface(
-                        fn=download_weights,
+                        fn=lambda: "Download weights functionality here",
                         inputs=[],
                         outputs=gr.Textbox(label="Download Status")
                     )
 
     demo.launch(share=share)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Gradio Interface")
