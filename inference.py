@@ -49,8 +49,8 @@ def colorize_images(target_path, colorizator, args):
         if ext.lower() not in ['.jpg', '.jpeg', '.png']:
             continue
 
-        if ext != '.png':
-            image_name = name + '.png'
+        if ext.lower() != args.format:
+            image_name = name + '.' + args.format
 
         print(f'Processing {file_path}')
 
@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('-nd', '--no_denoise', dest='denoiser', action='store_false')
     parser.add_argument("-ds", "--denoiser_sigma", type=int, default=25)
     parser.add_argument("-s", "--size", type=int, default=576)
+    parser.add_argument("-f", "--format", default='png', choices=['png', 'jpg', 'jpeg', 'webp'], help="Output image format")
     parser.set_defaults(gpu=False)
     parser.set_defaults(denoiser=True)
     args = parser.parse_args()
@@ -101,7 +102,7 @@ if __name__ == "__main__":
         split = os.path.splitext(args.path)
 
         if split[1].lower() in ('.jpg', '.png', '.jpeg', '.webp'):
-            new_image_name = os.path.basename(split[0]) + '_colorized.png'
+            new_image_name = os.path.basename(split[0]) + '_colorized.' + args.format
             new_image_path = os.path.join(colorization_path, new_image_name)
             new_image_path = get_unique_save_path(new_image_path)
             colorize_single_image(args.path, new_image_path, colorizer, args)

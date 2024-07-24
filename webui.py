@@ -35,16 +35,20 @@ def extract_images_from_archive(archive_path, temp_dir):
 
 
 def upscale_image(input_path, output_path, model_name, output_format, scale=4):
+    # Cambiar la extensión del archivo de salida según el formato de salida
+    base, _ = os.path.splitext(output_path)
+    output_path_with_format = f"{base}.{output_format}"
+
     command = [
         'realesrgan/realesrgan-ncnn-vulkan.exe',
         '-i', input_path,
-        '-o', output_path,
+        '-o', output_path_with_format,
         '-s', str(scale),
         '-n', model_name,
         '-f', output_format
     ]
     subprocess.run(command)
-    return output_path
+    return output_path_with_format
 
 
 def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25, size=576):
@@ -77,11 +81,11 @@ def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25
         return "Error: No colorized image found."
 
 
-def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name, output_format):
+def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name, output_format):
     colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
     if os.path.exists(colorized_image_path):
         if upscale:
-            upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name,
+            upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
                                                 output_format)
             return Image.open(upscaled_image_path)
         return Image.open(colorized_image_path)
@@ -89,14 +93,14 @@ def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscal
         return None
 
 
-def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name,
+def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                              output_format):
     colorized_images = []
     for image_path in image_paths:
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name,
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
                                                     output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
@@ -104,7 +108,7 @@ def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigm
     return colorized_images
 
 
-def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name,
+def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                     output_format):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -128,7 +132,7 @@ def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma
         colorized_image_path = print_cli(image_path, output_folder, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name,
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
                                                     output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
@@ -137,7 +141,7 @@ def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma
     return colorized_images
 
 
-def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, scale, model_name,
+def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                      output_format):
     temp_dir = Path('./temp_extracted')
     if not temp_dir.exists():
@@ -150,7 +154,7 @@ def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, scale, model_name,
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
                                                     output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
@@ -265,7 +269,6 @@ def run_interface(share=False):
                     )
 
     demo.launch(share=share)
-
 
 
 if __name__ == "__main__":
