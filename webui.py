@@ -9,30 +9,41 @@ import argparse
 import subprocess
 import requests
 
-def download_and_extract(url, dest_path, extract_to=None):
-    if not os.path.exists(dest_path):
+def download_file(url, dest):
+    """Download a file from a URL to a destination path."""
+    try:
         response = requests.get(url)
-        with open(dest_path, 'wb') as file:
-            file.write(response.content)
-        if extract_to:
-            with zipfile.ZipFile(dest_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_to)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        with open(dest, 'wb') as f:
+            f.write(response.content)
+        print(f"Downloaded {dest}")
+    except Exception as e:
+        print(f"Error downloading {url}: {e}")
 
 def check_and_download_models():
+    """Check for model files and download them if they do not exist."""
+    # Paths and URLs
     gen_weights_path = 'denoising/models/net_rgb.pth'
     gen_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/net_rgb.pth'
 
     ext_weights_path = 'networks/generator.zip'
     ext_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/generator.zip'
-    ext_weights_dest = 'networks'
 
+    # Ensure the directories exist
+    if not os.path.exists('denoising/models'):
+        os.makedirs('denoising/models')
+    if not os.path.exists('networks'):
+        os.makedirs('networks')
+
+    # Download the generator weights if not present
     if not os.path.exists(gen_weights_path):
         print(f"Downloading {gen_weights_path}...")
-        download_and_extract(gen_weights_url, gen_weights_path)
+        download_file(gen_weights_url, gen_weights_path)
 
+    # Download the external weights if not present
     if not os.path.exists(ext_weights_path):
         print(f"Downloading {ext_weights_path}...")
-        download_and_extract(ext_weights_url, ext_weights_path, ext_weights_dest)
+        download_file(ext_weights_url, ext_weights_path)
 
 def get_unique_save_path(save_path):
     base, ext = os.path.splitext(save_path)
