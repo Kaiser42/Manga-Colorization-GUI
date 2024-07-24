@@ -19,7 +19,7 @@ def download_and_extract(url, dest_path, extract_to=None):
                 zip_ref.extractall(extract_to)
 
 def check_and_download_models():
-    gen_weights_path = 'networks/net_rgb.pth'
+    gen_weights_path = 'denoising/models/net_rgb.pth'
     gen_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/net_rgb.pth'
 
     ext_weights_path = 'networks/generator.zip'
