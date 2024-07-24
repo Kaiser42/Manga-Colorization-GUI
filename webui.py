@@ -7,7 +7,32 @@ from PIL import Image
 from pathlib import Path
 import argparse
 import subprocess
+import requests
 
+def download_and_extract(url, dest_path, extract_to=None):
+    if not os.path.exists(dest_path):
+        response = requests.get(url)
+        with open(dest_path, 'wb') as file:
+            file.write(response.content)
+        if extract_to:
+            with zipfile.ZipFile(dest_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_to)
+
+def check_and_download_models():
+    gen_weights_path = 'networks/net_rgb.pth'
+    gen_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/net_rgb.pth'
+
+    ext_weights_path = 'networks/generator.zip'
+    ext_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/generator.zip'
+    ext_weights_dest = 'networks'
+
+    if not os.path.exists(gen_weights_path):
+        print(f"Downloading {gen_weights_path}...")
+        download_and_extract(gen_weights_url, gen_weights_path)
+
+    if not os.path.exists(ext_weights_path):
+        print(f"Downloading {ext_weights_path}...")
+        download_and_extract(ext_weights_url, ext_weights_path, ext_weights_dest)
 
 def get_unique_save_path(save_path):
     base, ext = os.path.splitext(save_path)
@@ -16,7 +41,6 @@ def get_unique_save_path(save_path):
         save_path = f"{base}_{counter}{ext}"
         counter += 1
     return save_path
-
 
 def extract_images_from_archive(archive_path, temp_dir):
     ext = os.path.splitext(archive_path)[1].lower()
@@ -33,9 +57,7 @@ def extract_images_from_archive(archive_path, temp_dir):
 
     return extracted_files
 
-
 def upscale_image(input_path, output_path, model_name, output_format, scale=4):
-    # Cambiar la extensión del archivo de salida según el formato de salida
     base, _ = os.path.splitext(output_path)
     output_path_with_format = f"{base}.{output_format}"
 
@@ -49,7 +71,6 @@ def upscale_image(input_path, output_path, model_name, output_format, scale=4):
     ]
     subprocess.run(command)
     return output_path_with_format
-
 
 def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25, size=576):
     if output is None or output.strip() == "":
@@ -80,7 +101,6 @@ def print_cli(image, output=None, gpu=False, no_denoise=False, denoiser_sigma=25
     else:
         return "Error: No colorized image found."
 
-
 def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name, output_format):
     colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
     if os.path.exists(colorized_image_path):
@@ -91,7 +111,6 @@ def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscal
         return Image.open(colorized_image_path)
     else:
         return None
-
 
 def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                              output_format):
@@ -106,7 +125,6 @@ def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigm
             else:
                 colorized_images.append(Image.open(colorized_image_path))
     return colorized_images
-
 
 def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                     output_format):
@@ -140,7 +158,6 @@ def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma
 
     return colorized_images
 
-
 def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
                      output_format):
     temp_dir = Path('./temp_extracted')
@@ -160,14 +177,12 @@ def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size
             else:
                 colorized_images.append(Image.open(colorized_image_path))
 
-    # Optionally re-package colorized images into an archive
     colorized_archive_path = get_unique_save_path(os.path.splitext(archive_path)[0] + "_colorized.zip")
     with zipfile.ZipFile(colorized_archive_path, 'w') as colorized_archive:
         for image_path in colorized_images:
             colorized_archive.write(image_path.filename, os.path.basename(image_path.filename))
 
     return colorized_archive_path
-
 
 def run_interface(share=False):
     with gr.Blocks() as demo:
@@ -184,7 +199,6 @@ def run_interface(share=False):
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
                             gr.Slider(0, 4000, label="Size", value=576, step=32),
                             gr.Checkbox(label="Upscale Image"),
-                            # Removed the slider for Upscale Scale
                             gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
                                                  'realesrnet-x4plus'], label="Upscale Model",
                                         value='realesrgan-x4plus'),
@@ -206,7 +220,6 @@ def run_interface(share=False):
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
                             gr.Slider(0, 4000, label="Size", value=576, step=32),
                             gr.Checkbox(label="Upscale Images"),
-                            # Removed the slider for Upscale Scale
                             gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
                                                  'realesrnet-x4plus'], label="Upscale Model",
                                         value='realesrgan-x4plus'),
@@ -228,7 +241,6 @@ def run_interface(share=False):
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
                             gr.Slider(0, 4000, label="Size", value=576, step=32),
                             gr.Checkbox(label="Upscale Images"),
-                            # Removed the slider for Upscale Scale
                             gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
                                                  'realesrnet-x4plus'], label="Upscale Model",
                                         value='realesrgan-x4plus'),
@@ -250,7 +262,6 @@ def run_interface(share=False):
                             gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
                             gr.Slider(0, 4000, label="Size", value=576, step=32),
                             gr.Checkbox(label="Upscale Images"),
-                            # Removed the slider for Upscale Scale
                             gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
                                                  'realesrnet-x4plus'], label="Upscale Model",
                                         value='realesrgan-x4plus'),
@@ -259,21 +270,12 @@ def run_interface(share=False):
                         outputs=gr.Textbox(label="Colorized Archive Path")
                     )
 
-        with gr.Tab("Extras"):
-            with gr.Row():
-                with gr.Column():
-                    extras_interface = gr.Interface(
-                        fn=lambda: "Download weights functionality here",
-                        inputs=[],
-                        outputs=gr.Textbox(label="Download Status")
-                    )
-
     demo.launch(share=share)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Gradio Interface")
     parser.add_argument('-url', action='store_true', help='Generate a public URL for the Gradio interface')
     args = parser.parse_args()
 
+    check_and_download_models()
     run_interface(share=args.url)
