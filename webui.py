@@ -8,6 +8,7 @@ from pathlib import Path
 import argparse
 import subprocess
 import requests
+import platform
 
 def download_file(url, dest):
     """Download a file from a URL to a destination path."""
@@ -68,12 +69,18 @@ def extract_images_from_archive(archive_path, temp_dir):
 
     return extracted_files
 
+def get_realesrgan_command():
+    if platform.system() == 'Windows':
+        return 'realesrgan/realesrgan-ncnn-vulkan.exe'
+    else:
+        return 'realesrgan/realesrgan-ncnn-vulkan'
+
 def upscale_image(input_path, output_path, model_name, output_format, scale=4):
     base, _ = os.path.splitext(output_path)
     output_path_with_format = f"{base}.{output_format}"
 
     command = [
-        'realesrgan/realesrgan-ncnn-vulkan.exe',
+        get_realesrgan_command(),
         '-i', input_path,
         '-o', output_path_with_format,
         '-s', str(scale),
