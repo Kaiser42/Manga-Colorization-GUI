@@ -8,7 +8,6 @@ from pathlib import Path
 import argparse
 import subprocess
 import requests
-import platform
 
 def download_file(url, dest):
     """Download a file from a URL to a destination path."""
@@ -23,25 +22,21 @@ def download_file(url, dest):
 
 def check_and_download_models():
     """Check for model files and download them if they do not exist."""
-    # Paths and URLs
     gen_weights_path = 'denoising/models/net_rgb.pth'
     gen_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/net_rgb.pth'
 
     ext_weights_path = 'networks/generator.zip'
     ext_weights_url = 'https://huggingface.co/KaiserQ/Models-GEN/resolve/main/Manga-Colorization-GUI/generator.zip'
 
-    # Ensure the directories exist
     if not os.path.exists('denoising/models'):
         os.makedirs('denoising/models')
     if not os.path.exists('networks'):
         os.makedirs('networks')
 
-    # Download the generator weights if not present
     if not os.path.exists(gen_weights_path):
         print(f"Downloading {gen_weights_path}...")
         download_file(gen_weights_url, gen_weights_path)
 
-    # Download the external weights if not present
     if not os.path.exists(ext_weights_path):
         print(f"Downloading {ext_weights_path}...")
         download_file(ext_weights_url, ext_weights_path)
@@ -69,23 +64,17 @@ def extract_images_from_archive(archive_path, temp_dir):
 
     return extracted_files
 
-def get_realesrgan_command():
-    if 'COLAB_GPU' in os.environ or platform.system() != 'Windows':
-        return 'realesrgan/realesrgan-ncnn-vulkan'
-    else:
-        return 'realesrgan/realesrgan-ncnn-vulkan.exe'
-
 def upscale_image(input_path, output_path, model_name, output_format, scale=4):
     base, _ = os.path.splitext(output_path)
     output_path_with_format = f"{base}.{output_format}"
 
     command = [
-        get_realesrgan_command(),
+        'python', 'realesrgan/inference_realesrgan.py',
         '-i', input_path,
         '-o', output_path_with_format,
-        '-s', str(scale),
         '-n', model_name,
-        '-f', output_format
+        '-s', str(scale),
+        '--ext', output_format
     ]
     subprocess.run(command)
     return output_path_with_format
@@ -123,29 +112,25 @@ def load_image(image_path, output, gpu, no_denoise, denoiser_sigma, size, upscal
     colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
     if os.path.exists(colorized_image_path):
         if upscale:
-            upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
-                                                output_format)
+            upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name, output_format)
             return Image.open(upscaled_image_path)
         return Image.open(colorized_image_path)
     else:
         return None
 
-def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
-                             output_format):
+def colorize_multiple_images(image_paths, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name, output_format):
     colorized_images = []
     for image_path in image_paths:
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
-                                                    output_format)
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name, output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
                 colorized_images.append(Image.open(colorized_image_path))
     return colorized_images
 
-def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
-                    output_format):
+def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma, size, upscale, model_name, output_format):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -168,16 +153,14 @@ def colorize_folder(input_folder, output_folder, gpu, no_denoise, denoiser_sigma
         colorized_image_path = print_cli(image_path, output_folder, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
-                                                    output_format)
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name, output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
                 colorized_images.append(Image.open(colorized_image_path))
 
     return colorized_images
 
-def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name,
-                     output_format):
+def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size, upscale, model_name, output_format):
     temp_dir = Path('./temp_extracted')
     if not temp_dir.exists():
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -189,104 +172,106 @@ def colorize_archive(archive_path, output, gpu, no_denoise, denoiser_sigma, size
         colorized_image_path = print_cli(image_path, output, gpu, no_denoise, denoiser_sigma, size)
         if os.path.exists(colorized_image_path):
             if upscale:
-                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name,
-                                                    output_format)
+                upscaled_image_path = upscale_image(colorized_image_path, colorized_image_path, model_name, output_format)
                 colorized_images.append(Image.open(upscaled_image_path))
             else:
                 colorized_images.append(Image.open(colorized_image_path))
 
     colorized_archive_path = get_unique_save_path(os.path.splitext(archive_path)[0] + "_colorized.zip")
     with zipfile.ZipFile(colorized_archive_path, 'w') as colorized_archive:
-        for image_path in colorized_images:
-            colorized_archive.write(image_path.filename, os.path.basename(image_path.filename))
+        for image in colorized_images:
+            colorized_archive.write(image.filename, os.path.basename(image.filename))
 
     return colorized_archive_path
+
 
 def run_interface(share=False):
     with gr.Blocks() as demo:
         with gr.Tab("Colorize Single Image"):
-            with gr.Row():
-                with gr.Column():
-                    single_image_interface = gr.Interface(
-                        fn=load_image,
-                        inputs=[
-                            gr.Image(type='filepath', label="Image", elem_classes="input-image", height=500, width=700),
-                            gr.Textbox(label="Output Location", placeholder="Optional"),
-                            gr.Checkbox(label="Use GPU"),
-                            gr.Checkbox(label="No Denoise"),
-                            gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32),
-                            gr.Checkbox(label="Upscale Image"),
-                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
-                                                 'realesrnet-x4plus'], label="Upscale Model",
-                                        value='realesrgan-x4plus'),
-                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
-                        ],
-                        outputs=gr.Image(type='pil', label="Colorized Image", height=800, width=700)
-                    )
+            single_image_interface = gr.Interface(
+                fn=load_image,
+                inputs=[
+                    gr.Image(type='filepath', label="Image"),
+                    gr.Textbox(label="Output Location", placeholder="Optional"),
+                    gr.Checkbox(label="Use GPU"),
+                    gr.Checkbox(label="No Denoise"),
+                    gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
+                    gr.Slider(0, 4000, label="Size", value=576, step=32),
+                    gr.Checkbox(label="Upscale Image"),
+                    gr.CheckboxGroup(choices=[
+                        'RealESRGAN_x4plus', 'RealESRNet_x4plus',
+                        'RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x2plus',
+                        'realesr-animevideov3', 'realesr-general-x4v3'],
+                        label="Upscale Model", value=['RealESRGAN_x4plus']
+                    ),
+                    gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
+                ],
+                outputs=gr.Image(type='pil', label="Colorized Image")
+            )
 
         with gr.Tab("Colorize Multiple Images"):
-            with gr.Row():
-                with gr.Column():
-                    multiple_images_interface = gr.Interface(
-                        fn=colorize_multiple_images,
-                        inputs=[
-                            gr.Files(label="Images", type='filepath'),
-                            gr.Textbox(label="Output Location", placeholder="Optional"),
-                            gr.Checkbox(label="Use GPU"),
-                            gr.Checkbox(label="No Denoise"),
-                            gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32),
-                            gr.Checkbox(label="Upscale Images"),
-                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
-                                                 'realesrnet-x4plus'], label="Upscale Model",
-                                        value='realesrgan-x4plus'),
-                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
-                        ],
-                        outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
-                    )
+            multiple_images_interface = gr.Interface(
+                fn=colorize_multiple_images,
+                inputs=[
+                    gr.Files(label="Images", type='filepath'),
+                    gr.Textbox(label="Output Location", placeholder="Optional"),
+                    gr.Checkbox(label="Use GPU"),
+                    gr.Checkbox(label="No Denoise"),
+                    gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
+                    gr.Slider(0, 4000, label="Size", value=576, step=32),
+                    gr.Checkbox(label="Upscale Images"),
+                    gr.CheckboxGroup(choices=[
+                        'RealESRGAN_x4plus', 'RealESRNet_x4plus',
+                        'RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x2plus',
+                        'realesr-animevideov3', 'realesr-general-x4v3'],
+                        label="Upscale Model", value=['RealESRGAN_x4plus']
+                    ),
+                    gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
+                ],
+                outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
+            )
 
         with gr.Tab("Colorize Folder"):
-            with gr.Row():
-                with gr.Column():
-                    folder_interface = gr.Interface(
-                        fn=colorize_folder,
-                        inputs=[
-                            gr.Textbox(label="Input Folder", placeholder="Input folder path"),
-                            gr.Textbox(label="Output Folder", placeholder="Output folder path"),
-                            gr.Checkbox(label="Use GPU"),
-                            gr.Checkbox(label="No Denoise"),
-                            gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32),
-                            gr.Checkbox(label="Upscale Images"),
-                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
-                                                 'realesrnet-x4plus'], label="Upscale Model",
-                                        value='realesrgan-x4plus'),
-                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
-                        ],
-                        outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
-                    )
+            folder_interface = gr.Interface(
+                fn=colorize_folder,
+                inputs=[
+                    gr.Textbox(label="Input Folder", placeholder="Input folder path"),
+                    gr.Textbox(label="Output Folder", placeholder="Output folder path"),
+                    gr.Checkbox(label="Use GPU"),
+                    gr.Checkbox(label="No Denoise"),
+                    gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
+                    gr.Slider(0, 4000, label="Size", value=576, step=32),
+                    gr.Checkbox(label="Upscale Images"),
+                    gr.CheckboxGroup(choices=[
+                        'RealESRGAN_x4plus', 'RealESRNet_x4plus',
+                        'RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x2plus',
+                        'realesr-animevideov3', 'realesr-general-x4v3'],
+                        label="Upscale Model", value=['RealESRGAN_x4plus']
+                    ),
+                    gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
+                ],
+                outputs=gr.Gallery(label="Colorized Images", columns=4, height="auto")
+            )
 
         with gr.Tab("Colorize Archive"):
-            with gr.Row():
-                with gr.Column():
-                    archive_interface = gr.Interface(
-                        fn=colorize_archive,
-                        inputs=[
-                            gr.File(label="Archive (ZIP, CBR, CBZ)", type='filepath'),
-                            gr.Textbox(label="Output Location", placeholder="Optional"),
-                            gr.Checkbox(label="Use GPU"),
-                            gr.Checkbox(label="No Denoise"),
-                            gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
-                            gr.Slider(0, 4000, label="Size", value=576, step=32),
-                            gr.Checkbox(label="Upscale Images"),
-                            gr.Dropdown(choices=['realesr-animevideov3', 'realesrgan-x4plus', 'realesrgan-x4plus-anime',
-                                                 'realesrnet-x4plus'], label="Upscale Model",
-                                        value='realesrgan-x4plus'),
-                            gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
-                        ],
-                        outputs=gr.Textbox(label="Colorized Archive Path")
-                    )
+            archive_interface = gr.Interface(
+                fn=colorize_archive,
+                inputs=[
+                    gr.File(label="Archive (ZIP, CBR, CBZ)", type='filepath'),
+                    gr.Textbox(label="Output Location", placeholder="Optional"),
+                    gr.Checkbox(label="Use GPU"),
+                    gr.Checkbox(label="No Denoise"),
+                    gr.Slider(0, 100, label="Denoiser Sigma", value=25, step=1),
+                    gr.Slider(0, 4000, label="Size", value=576, step=32),
+                    gr.Checkbox(label="Upscale Images"),
+                    gr.CheckboxGroup(choices=[
+                        'RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x4plus'],
+                        label="Upscale Model", value=['RealESRGAN_x4plus_anime_6B']
+                    ),
+                    gr.Dropdown(choices=['jpg', 'png', 'webp'], label="Output Format", value='png')
+                ],
+                outputs=gr.Textbox(label="Colorized Archive Path")
+            )
 
     demo.launch(share=share)
 
